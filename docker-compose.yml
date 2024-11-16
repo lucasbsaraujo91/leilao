@@ -12,6 +12,7 @@ services:
     command: sh -c "/auction"
     networks:
       - localNetwork
+    container_name: app
 
   mongodb:
     image: mongo:latest

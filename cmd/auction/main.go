@@ -13,6 +13,8 @@ import (
 	"fullcycle-auction_go/internal/usecase/bid_usecase"
 	"fullcycle-auction_go/internal/usecase/user_usecase"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -37,6 +39,8 @@ func main() {
 
 	userController, bidController, auctionsController := initDependencies(databaseConnection)
 
+	// Start the background routine for closing expired auctions
+
 	router.GET("/auction", auctionsController.FindAuctions)
 	router.GET("/auction/:auctionId", auctionsController.FindAuctionById)
 	router.POST("/auction", auctionsController.CreateAuction)
@@ -47,7 +51,26 @@ func main() {
 	router.GET("/auctions/expired", auctionsController.FindExpiredAuctions)
 	router.GET("/auctions/closeexpiredauctions", auctionsController.CloseExpiredAuctions)
 
+	// Executa a goroutine para fechar leilões expirados a cada intervalo
+	go autoCloseExpiredAuctions()
+
 	router.Run(":8080")
+}
+
+func autoCloseExpiredAuctions() {
+	for {
+		// Chama a rota para fechar leilões expirados
+		resp, err := http.Get("http://app:8080/auctions/closeexpiredauctions")
+		if err != nil {
+			log.Printf("Erro ao chamar a API para fechar leilões expirados: %v\n", err)
+		} else {
+			log.Println("Fechamento de leilões expirados executado com sucesso!")
+			resp.Body.Close()
+		}
+
+		// A cada 10 minutos, repete a verificação
+		time.Sleep(10 * time.Minute)
+	}
 }
 
 func initDependencies(database *mongo.Database) (
