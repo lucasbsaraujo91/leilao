@@ -1,0 +1,17 @@
+POST http://localhost:8080/bid
+Host: localhost:8080
+Content-Type: application/json
+
+{
+    "user_id": "34a72e2a-ca4d-4a47-8640-0bde3235d997",
+    "auction_id": "0df8bf92-a455-481a-9551-12741af150c1",
+    "amount": 1000,
+    "causes": "eu quero gganhar"
+}
+
+#######
+
+GET http://localhost:8080/bid/0df8bf92-a455-481a-9551-12741af150c1
+Host: localhost:8080
+Content-Type: application/json
+
