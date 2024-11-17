@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -9,10 +7,13 @@ services:
       - "8080:8080"
     env_file:
       - cmd/auction/.env
-    command: sh -c "/auction"
+    command: sh -c "cron && /auction"
     networks:
       - localNetwork
     container_name: app
+    depends_on:
+      - mongodb  # Garante que o MongoDB seja iniciado primeiro
+    restart: always  # Reinicia automaticamente em caso de falhas
 
   mongodb:
     image: mongo:latest

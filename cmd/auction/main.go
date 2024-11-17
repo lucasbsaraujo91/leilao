@@ -24,8 +24,8 @@ import (
 func main() {
 	ctx := context.Background()
 
-	if err := godotenv.Load("cmd/auction/.env"); err != nil {
-		log.Fatal("Error trying to load env variables")
+	if err := godotenv.Load(".env"); err != nil {
+		log.Fatal("Error trying to load env variables", err)
 		return
 	}
 
@@ -86,7 +86,7 @@ func initDependencies(database *mongo.Database) (
 		user_usecase.NewUserUseCase(userRepository))
 	auctionController = auction_controller.NewAuctionController(
 		auction_usecase.NewAuctionUseCase(auctionRepository, bidRepository))
-	bidController = bid_controller.NewBidController(bid_usecase.NewBidUseCase(bidRepository))
+	bidController = bid_controller.NewBidController(bid_usecase.NewBidUseCase(bidRepository, auctionRepository))
 
 	return
 }

@@ -3,10 +3,13 @@ package bid_usecase
 import (
 	"context"
 	"fullcycle-auction_go/configuration/logger"
+	"fullcycle-auction_go/internal/entity/auction_entity"
 	"fullcycle-auction_go/internal/entity/bid_entity"
 	"fullcycle-auction_go/internal/internal_error"
+	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -25,29 +28,11 @@ type BidOutputDTO struct {
 }
 
 type BidUseCase struct {
-	BidRepository bid_entity.BidEntityRepository
-
-	timer               *time.Timer
+	BidRepository       bid_entity.BidEntityRepository
 	maxBatchSize        int
 	batchInsertInterval time.Duration
 	bidChannel          chan bid_entity.Bid
-}
-
-func NewBidUseCase(bidRepository bid_entity.BidEntityRepository) BidUseCaseInterface {
-	maxSizeInterval := getMaxBatchSizeInterval()
-	maxBatchSize := getMaxBatchSize()
-
-	bidUseCase := &BidUseCase{
-		BidRepository:       bidRepository,
-		maxBatchSize:        maxBatchSize,
-		batchInsertInterval: maxSizeInterval,
-		timer:               time.NewTimer(maxSizeInterval),
-		bidChannel:          make(chan bid_entity.Bid, maxBatchSize),
-	}
-
-	bidUseCase.triggerCreateRoutine(context.Background())
-
-	return bidUseCase
+	wg                  sync.WaitGroup
 }
 
 var bidBatch []bid_entity.Bid
@@ -64,72 +49,107 @@ type BidUseCaseInterface interface {
 		ctx context.Context, auctionId string) ([]BidOutputDTO, *internal_error.InternalError)
 }
 
+func NewBidUseCase(bidRepository bid_entity.BidEntityRepository, auctionRepositoryInterface auction_entity.AuctionRepositoryInterface) BidUseCaseInterface {
+	maxSizeInterval := getMaxBatchSizeInterval()
+	maxBatchSize := getMaxBatchSize()
+
+	bidUseCase := &BidUseCase{
+		BidRepository:       bidRepository,
+		maxBatchSize:        maxBatchSize,
+		batchInsertInterval: maxSizeInterval,
+		bidChannel:          make(chan bid_entity.Bid, 100), // Canal com buffer maior
+	}
+
+	// Inicia a goroutine para processar bids de forma contínua
+	go bidUseCase.triggerCreateRoutine(context.Background())
+
+	return bidUseCase
+}
+
 func (bu *BidUseCase) triggerCreateRoutine(ctx context.Context) {
-	go func() {
-		defer close(bu.bidChannel)
+	ticker := time.NewTicker(bu.batchInsertInterval)
+	defer ticker.Stop()
 
-		for {
-			select {
-			case bidEntity, ok := <-bu.bidChannel:
-				if !ok {
-					if len(bidBatch) > 0 {
-						if err := bu.BidRepository.CreateBid(ctx, bidBatch); err != nil {
-							logger.Error("error trying to process bid batch list", err)
-						}
-					}
-					return
-				}
+	for {
+		select {
+		case bidEntity := <-bu.bidChannel: // Consome lances do canal
+			bidBatch = append(bidBatch, bidEntity)
+			log.Printf("Bid added to batch. Current batch size: %d", len(bidBatch))
 
-				bidBatch = append(bidBatch, bidEntity)
+			// Processa o lote se atingir o tamanho máximo
+			if len(bidBatch) >= bu.maxBatchSize {
+				log.Println("Max batch size reached. Processing batch.")
+				bu.processBids(ctx)
+			}
 
-				if len(bidBatch) >= bu.maxBatchSize {
-					if err := bu.BidRepository.CreateBid(ctx, bidBatch); err != nil {
-						logger.Error("error trying to process bid batch list", err)
-					}
-
-					bidBatch = nil
-					bu.timer.Reset(bu.batchInsertInterval)
-				}
-			case <-bu.timer.C:
-				if err := bu.BidRepository.CreateBid(ctx, bidBatch); err != nil {
-					logger.Error("error trying to process bid batch list", err)
-				}
-				bidBatch = nil
-				bu.timer.Reset(bu.batchInsertInterval)
+		case <-ticker.C: // Processa a cada intervalo, mesmo que a batch esteja incompleta
+			if len(bidBatch) > 0 {
+				log.Println("Time interval reached. Processing batch.")
+				bu.processBids(ctx)
 			}
 		}
-	}()
+	}
+}
+
+func (bu *BidUseCase) processBids(ctx context.Context) {
+	if len(bidBatch) == 0 {
+		return
+	}
+
+	log.Printf("Processing batch of %d bids...", len(bidBatch))
+
+	// Processa os lances no repositório
+	err := bu.BidRepository.CreateBid(ctx, bidBatch)
+	if err != nil {
+		logger.Error("Error processing batch:", err)
+	} else {
+		log.Printf("Successfully processed batch of %d bids", len(bidBatch))
+	}
+
+	// Limpa o batch após processamento
+	bidBatch = nil
 }
 
 func (bu *BidUseCase) CreateBid(
 	ctx context.Context,
 	bidInputDTO BidInputDTO) *internal_error.InternalError {
 
+	// Cria a entidade do lance
 	bidEntity, err := bid_entity.CreateBid(bidInputDTO.UserId, bidInputDTO.AuctionId, bidInputDTO.Amount)
 	if err != nil {
 		return err
 	}
 
-	bu.bidChannel <- *bidEntity
+	// Adiciona ao canal para processamento
+	select {
+	case bu.bidChannel <- *bidEntity:
+		log.Println("Bid successfully added to channel")
+	default:
+		// Se o canal estiver cheio, força o processamento do lote atual
+		log.Println("Channel is full. Forcing batch processing.")
+		bu.processBids(ctx)
+		bu.bidChannel <- *bidEntity // Tenta novamente adicionar após esvaziar o batch
+	}
 
 	return nil
 }
 
 func getMaxBatchSizeInterval() time.Duration {
 	batchInsertInterval := os.Getenv("BATCH_INSERT_INTERVAL")
+	if batchInsertInterval == "" {
+		return 1 * time.Minute // Ajuste o intervalo conforme necessário
+	}
 	duration, err := time.ParseDuration(batchInsertInterval)
 	if err != nil {
-		return 3 * time.Minute
+		return 1 * time.Minute // Caso o valor não esteja presente ou esteja incorreto, use um valor padrão
 	}
-
 	return duration
 }
 
 func getMaxBatchSize() int {
 	value, err := strconv.Atoi(os.Getenv("MAX_BATCH_SIZE"))
 	if err != nil {
-		return 5
+		return 10 // Valor padrão para o tamanho do batch
 	}
-
 	return value
 }

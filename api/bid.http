@@ -3,15 +3,15 @@ Host: localhost:8080
 Content-Type: application/json
 
 {
-    "user_id": "34a72e2a-ca4d-4a47-8640-0bde3235d997",
-    "auction_id": "0df8bf92-a455-481a-9551-12741af150c1",
-    "amount": 1000,
-    "causes": "eu quero gganhar"
+    "user_id": "8afc6593-e09b-4acb-9c7a-eb3cd094e95b",
+    "auction_id": "56357819-8005-4e82-abf9-6bb393c41e79",
+    "amount": 7000,
+    "causes": "teste"
 }
 
 #######
 
-GET http://localhost:8080/bid/0df8bf92-a455-481a-9551-12741af150c1
+GET http://localhost:8080/bid
 Host: localhost:8080
 Content-Type: application/json
 

@@ -3,8 +3,8 @@ Host: localhost:8080
 Content-Type: application/json
 
 {
-    "product_name": "teste2",
-    "category": "teste2",
+    "product_name": "teste6",
+    "category": "teste5",
     "description": "teste do lucas2",
     "condition": 1
 }

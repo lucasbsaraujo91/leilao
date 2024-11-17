@@ -47,12 +47,16 @@ func NewBidRepository(database *mongo.Database, auctionRepository *auction.Aucti
 func (bd *BidRepository) CreateBid(
 	ctx context.Context,
 	bidEntities []bid_entity.Bid) *internal_error.InternalError {
+
 	var wg sync.WaitGroup
+	errChan := make(chan error, len(bidEntities)) // Canal para capturar erros de inserção
+
 	for _, bid := range bidEntities {
 		wg.Add(1)
 		go func(bidValue bid_entity.Bid) {
 			defer wg.Done()
 
+			// Verifica o status e o tempo de encerramento do leilão
 			bd.auctionStatusMapMutex.Lock()
 			auctionStatus, okStatus := bd.auctionStatusMap[bidValue.AuctionId]
 			bd.auctionStatusMapMutex.Unlock()
@@ -61,6 +65,7 @@ func (bd *BidRepository) CreateBid(
 			auctionEndTime, okEndTime := bd.auctionEndTimeMap[bidValue.AuctionId]
 			bd.auctionEndTimeMutex.Unlock()
 
+			// Cria a estrutura para salvar no banco
 			bidEntityMongo := &BidEntityMongo{
 				Id:        bidValue.Id,
 				UserId:    bidValue.UserId,
@@ -69,29 +74,27 @@ func (bd *BidRepository) CreateBid(
 				Timestamp: bidValue.Timestamp.Unix(),
 			}
 
+			// Valida o leilão em cache
 			if okEndTime && okStatus {
 				now := time.Now()
 				if auctionStatus == auction_entity.Completed || now.After(auctionEndTime) {
-					return
+					return // Ignora lances de leilões encerrados
 				}
-
 				if _, err := bd.Collection.InsertOne(ctx, bidEntityMongo); err != nil {
-					logger.Error("Error trying to insert bid", err)
+					errChan <- err // Envia erro para o canal
 					return
 				}
-
 				return
 			}
 
+			// Se o leilão não estiver em cache, busca do banco
 			auctionEntity, err := bd.AuctionRepository.FindAuctionById(ctx, bidValue.AuctionId)
 			if err != nil {
-				logger.Error("Error trying to find auction by id", err)
-				return
-			}
-			if auctionEntity.Status == auction_entity.Completed {
+				errChan <- err // Envia erro para o canal
 				return
 			}
 
+			// Atualiza os mapas em cache
 			bd.auctionStatusMapMutex.Lock()
 			bd.auctionStatusMap[bidValue.AuctionId] = auctionEntity.Status
 			bd.auctionStatusMapMutex.Unlock()
@@ -100,13 +103,24 @@ func (bd *BidRepository) CreateBid(
 			bd.auctionEndTimeMap[bidValue.AuctionId] = auctionEntity.Timestamp.Add(bd.auctionInterval)
 			bd.auctionEndTimeMutex.Unlock()
 
+			// Insere o lance
 			if _, err := bd.Collection.InsertOne(ctx, bidEntityMongo); err != nil {
-				logger.Error("Error trying to insert bid", err)
+				errChan <- err // Envia erro para o canal
 				return
 			}
 		}(bid)
 	}
+
+	// Aguarda todas as goroutines terminarem
 	wg.Wait()
+	close(errChan)
+
+	// Retorna o primeiro erro encontrado, se existir
+	for err := range errChan {
+		logger.Error("Error processing bid:", err)
+		return internal_error.NewInternalServerError("Error processing bids")
+	}
+
 	return nil
 }
 
