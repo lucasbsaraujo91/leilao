@@ -28,11 +28,12 @@ type BidOutputDTO struct {
 }
 
 type BidUseCase struct {
-	BidRepository       bid_entity.BidEntityRepository
-	maxBatchSize        int
-	batchInsertInterval time.Duration
-	bidChannel          chan bid_entity.Bid
-	wg                  sync.WaitGroup
+	BidRepository              bid_entity.BidEntityRepository
+	auctionRepositoryInterface auction_entity.AuctionRepositoryInterface
+	maxBatchSize               int
+	batchInsertInterval        time.Duration
+	bidChannel                 chan bid_entity.Bid
+	wg                         sync.WaitGroup
 }
 
 var bidBatch []bid_entity.Bid
@@ -54,10 +55,11 @@ func NewBidUseCase(bidRepository bid_entity.BidEntityRepository, auctionReposito
 	maxBatchSize := getMaxBatchSize()
 
 	bidUseCase := &BidUseCase{
-		BidRepository:       bidRepository,
-		maxBatchSize:        maxBatchSize,
-		batchInsertInterval: maxSizeInterval,
-		bidChannel:          make(chan bid_entity.Bid, 100), // Canal com buffer maior
+		BidRepository:              bidRepository,
+		maxBatchSize:               maxBatchSize,
+		batchInsertInterval:        maxSizeInterval,
+		bidChannel:                 make(chan bid_entity.Bid, 100), // Canal com buffer maior
+		auctionRepositoryInterface: auctionRepositoryInterface,
 	}
 
 	// Inicia a goroutine para processar bids de forma contínua
@@ -113,6 +115,24 @@ func (bu *BidUseCase) processBids(ctx context.Context) {
 func (bu *BidUseCase) CreateBid(
 	ctx context.Context,
 	bidInputDTO BidInputDTO) *internal_error.InternalError {
+
+	// Buscar o leilão
+	auction, err := bu.auctionRepositoryInterface.FindAuctionById(ctx, bidInputDTO.AuctionId)
+	if err != nil {
+		log.Printf("Erro ao buscar leilão com ID %s: %v", bidInputDTO.AuctionId, err)
+		return err
+	}
+
+	if auction == nil {
+		log.Printf("Leilão %s não encontrado", bidInputDTO.AuctionId)
+		return internal_error.NewInternalServerError("auction not found")
+	}
+
+	// Verificar o status do leilão
+	if auction.Status == 1 { // Supondo que 1 seja "encerrado"
+		log.Printf("Leilão %s encerrado, não é possível aceitar novos lances", bidInputDTO.AuctionId)
+		return internal_error.NewInternalServerError("Leilão encerrado. Não é possível aceitar novos lances.")
+	}
 
 	// Cria a entidade do lance
 	bidEntity, err := bid_entity.CreateBid(bidInputDTO.UserId, bidInputDTO.AuctionId, bidInputDTO.Amount)
