@@ -58,11 +58,11 @@ func (bd *BidRepository) CreateBid(
 
 			// Verifica o status e o tempo de encerramento do leilão
 			bd.auctionStatusMapMutex.Lock()
-			auctionStatus, okStatus := bd.auctionStatusMap[bidValue.AuctionId]
+			_, okStatus := bd.auctionStatusMap[bidValue.AuctionId]
 			bd.auctionStatusMapMutex.Unlock()
 
 			bd.auctionEndTimeMutex.Lock()
-			auctionEndTime, okEndTime := bd.auctionEndTimeMap[bidValue.AuctionId]
+			_, okEndTime := bd.auctionEndTimeMap[bidValue.AuctionId]
 			bd.auctionEndTimeMutex.Unlock()
 
 			// Cria a estrutura para salvar no banco
@@ -76,10 +76,6 @@ func (bd *BidRepository) CreateBid(
 
 			// Valida o leilão em cache
 			if okEndTime && okStatus {
-				now := time.Now()
-				if auctionStatus == auction_entity.Completed || now.After(auctionEndTime) {
-					return // Ignora lances de leilões encerrados
-				}
 				if _, err := bd.Collection.InsertOne(ctx, bidEntityMongo); err != nil {
 					errChan <- err // Envia erro para o canal
 					return

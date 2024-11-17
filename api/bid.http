@@ -4,7 +4,7 @@ Content-Type: application/json
 
 {
     "user_id": "8afc6593-e09b-4acb-9c7a-eb3cd094e95b",
-    "auction_id": "56357819-8005-4e82-abf9-6bb393c41e79",
+    "auction_id": "73fcb0c4-fa20-476c-b3d2-776fd758af43",
     "amount": 7000,
     "causes": "teste"
 }
