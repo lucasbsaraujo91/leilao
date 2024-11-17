@@ -2,18 +2,20 @@ Como rodar esse projeto:
 
     Rodar o comando docker-compose up -d --build na pasta raiz
 
-1 Etapa - Entrar na pasta leilao/api Etapa 
+1 Etapa - Entrar na pasta leilao/api Etapa: 
 
     Primeiro realizar o cadastro do leilao no arquivo: auction.http /* Inserção do leilao */
     Depois continuar nesse arquivo para pegar o leilao cadastro através do seguinte request  /* Pegar os leiloes cadastrado */
     Com o id do leilao, copiar
 
-2 Etapa - Continua na pasta leilao/api
+2 Etapa - Continua na pasta leilao/api:
+
     Ir no arquivo bid.http e colocar o id do leilao no campo: auction_id em /* Realizar o cadastro de um lance */
 
-3 Etapa - Foi criado um cron que vai atualizando os leiloes para 1, quando chega o término dele. A variavel utilizada para esse calculo é a AUCTION_TIMEOUT_SECONDS e está em segundos.
+3 Etapa - Foi criado um cron que vai atualizando os leiloes para 1, quando chega o término dele. A variavel utilizada para esse calculo é a AUCTION_TIMEOUT_SECONDS e está em segundos:
 
-4 Etapa - Havia um problema para o cadastro em lote e foi corrigido.
+4 Etapa - Havia um problema para o cadastro em lote e foi corrigido:
+
 
 --------------------------------------------------
 
