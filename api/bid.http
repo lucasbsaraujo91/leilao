@@ -1,16 +1,17 @@
+/* Realizar o cadastro de um lance */
 POST http://localhost:8080/bid
 Host: localhost:8080
 Content-Type: application/json
 
 {
     "user_id": "8afc6593-e09b-4acb-9c7a-eb3cd094e95b",
-    "auction_id": "73fcb0c4-fa20-476c-b3d2-776fd758af43",
+    "auction_id": "6065eac4-662e-4de3-9759-8676957cb3a0",
     "amount": 7000,
     "causes": "teste"
 }
 
 #######
-
+/* Pegar os lances */
 GET http://localhost:8080/bid
 Host: localhost:8080
 Content-Type: application/json

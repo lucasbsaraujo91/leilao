@@ -1,13 +1,20 @@
+/* Inserção do leilao */
 POST http://localhost:8080/auction
 Host: localhost:8080
 Content-Type: application/json
 
 {
-    "product_name": "teste6",
-    "category": "teste5",
+    "product_name": "teste10",
+    "category": "teste10",
     "description": "teste do lucas2",
     "condition": 1
 }
+
+#######
+ /* Pegar os leiloes cadastrado */
+GET http://localhost:8080/auction?status=0
+Host: localhost:8080
+Content-Type: application/json
 
 #######
 GET http://localhost:8080/auction/db7ce80e-c652-43c2-b998-20a635535acd
@@ -15,9 +22,6 @@ Host: localhost:8080
 Content-Type: application/json
 
 ######
-GET http://localhost:8080/auction?status=0
-Host: localhost:8080
-Content-Type: application/json
 
 ######
 GET http://localhost:8080/auction/winner/db7ce80e-c652-43c2-b998-20a635535acd
